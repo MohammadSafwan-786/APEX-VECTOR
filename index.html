@@ -124,6 +124,38 @@
   #scanlines{position:fixed;inset:0;z-index:4;pointer-events:none;
     background:repeating-linear-gradient(0deg, rgba(94,231,255,0.015) 0px, rgba(94,231,255,0.015) 1px, transparent 1px, transparent 3px);
     opacity:0.5;}
+
+  /* ---- touch controls ---- */
+  #touchControls{display:none;position:fixed;inset:0;z-index:8;pointer-events:none;}
+  #touchControls.active{display:block;}
+  #joyZone{position:fixed;bottom:20px;left:20px;width:140px;height:140px;pointer-events:all;
+    border-radius:50%;border:2px solid rgba(94,231,255,0.3);background:rgba(6,14,20,0.4);}
+  #joyKnob{position:absolute;width:56px;height:56px;border-radius:50%;left:42px;top:42px;
+    background:rgba(94,231,255,0.25);border:2px solid var(--cy);box-shadow:0 0 12px rgba(94,231,255,0.4);
+    transition:transform 0.05s;}
+  .tbtn{position:fixed;pointer-events:all;border-radius:50%;border:2px solid var(--panel-b);
+    background:rgba(6,14,20,0.6);color:var(--cy);font-family:inherit;font-weight:bold;
+    display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);
+    box-shadow:0 0 12px rgba(94,231,255,0.15);transition:all 0.1s;user-select:none;}
+  .tbtn:active{background:rgba(94,231,255,0.25);box-shadow:0 0 20px rgba(94,231,255,0.4);transform:scale(0.92);}
+  #tFire{bottom:100px;right:30px;width:80px;height:80px;font-size:13px;letter-spacing:1px;border-color:var(--rd);color:var(--rd);}
+  #tWeapon{bottom:30px;right:120px;width:64px;height:64px;font-size:11px;letter-spacing:1px;}
+  #tView{bottom:30px;right:200px;width:56px;height:56px;font-size:10px;letter-spacing:1px;}
+  #tBoost{bottom:120px;right:120px;width:64px;height:64px;font-size:11px;letter-spacing:1px;border-color:var(--am);color:var(--am);}
+  #tThrottleDn{bottom:190px;right:30px;width:56px;height:56px;font-size:10px;letter-spacing:1px;}
+
+  /* ---- mission list ---- */
+  #missionList{max-height:220px;overflow-y:auto;padding-right:8px;}
+  #missionList::-webkit-scrollbar{width:6px;}
+  #missionList::-webkit-scrollbar-thumb{background:rgba(94,231,255,0.3);border-radius:3px;}
+  .missionItem{display:block;margin:5px 0;padding:8px 14px;border:1px solid var(--panel-b);border-radius:4px;
+    cursor:pointer;pointer-events:all;font-size:12px;letter-spacing:1px;background:rgba(6,14,20,0.4);
+    transition:all 0.15s;text-align:left;}
+  .missionItem:hover{border-color:var(--cy);background:rgba(94,231,255,0.08);}
+  .missionItem.active{border-color:var(--cy);background:rgba(94,231,255,0.18);
+    box-shadow:0 0 10px rgba(94,231,255,0.25);}
+  .missionItem .mi-name{color:var(--cy);font-weight:bold;letter-spacing:2px;}
+  .missionItem .mi-desc{font-size:10px;color:#9fd;opacity:0.6;margin-top:2px;letter-spacing:0.5px;}
 </style>
 </head>
 <body>
@@ -132,6 +164,8 @@
 <div id="scanlines"></div>
 
 <div id="missionTag" class="hud">MISSION: DOGFIGHT</div>
+<div id="missionTimeTag" class="hud" style="top:42px;display:none"></div>
+<div id="missionProgressTag" class="hud" style="top:64px;display:none"></div>
 
 <div class="hud" id="topbar">
   <div class="panel readout"><div class="lbl">AIRSPEED</div><div class="val" id="spdVal">000</div></div>
@@ -199,9 +233,7 @@
 
     <div class="missionSelect">
       <div class="mlbl">SELECT MISSION</div>
-      <label class="missionOpt active"><input type="radio" name="mission" value="dogfight" checked>DOGFIGHT</label>
-      <label class="missionOpt"><input type="radio" name="mission" value="strike">STRIKE</label>
-      <div class="missionDesc">Dogfight: shoot down the MiG-35. Strike: bomb all ground targets.</div>
+      <div id="missionList"></div>
     </div>
 
     <p><span class="key">W</span><span class="key">S</span> pitch &nbsp;
@@ -215,6 +247,14 @@
 
 <div id="fpsTag"></div>
 
+<div id="touchControls">
+  <div id="joyZone"><div id="joyKnob"></div></div>
+  <button class="tbtn" id="tFire">FIRE</button>
+  <button class="tbtn" id="tWeapon">WPN</button>
+  <button class="tbtn" id="tView">VIEW</button>
+  <button class="tbtn" id="tBoost">BOOST</button>
+  <button class="tbtn" id="tThrottleDn">SLOW</button>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script type="module" src="audio.js"></script>

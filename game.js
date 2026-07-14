@@ -903,6 +903,7 @@ void main(){
       url,
       function (gltf) {
         fitModelInto(fighter.obj, gltf.scene, targetLength, -Math.PI / 2);
+        if (fighter === player && cockpit) fighter.obj.add(cockpit.group);
         const rear = -targetLength * 0.46,
           front = targetLength * 0.02;
         fighter.nozzles = [
@@ -1039,16 +1040,20 @@ void main(){
     }
   }
 
-  function setupBombingTargets() {
+  function setupBombingTargets(count) {
     while (targetGroup.children.length) targetGroup.remove(targetGroup.children[0]);
     groundTargets.length = 0;
     buildRunway();
-    buildGroundTarget(-50, 60, "building");
-    buildGroundTarget(55, 80, "fuel");
-    buildGroundTarget(-70, 120, "bunker");
-    buildGroundTarget(70, 140, "building");
-    buildGroundTarget(-45, 170, "fuel");
-    buildGroundTarget(50, 200, "bunker");
+    var types = ["building", "fuel", "bunker"];
+    var n = count || 6;
+    for (var i = 0; i < n; i++) {
+      var angle = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+      var dist = 80 + (i * 25) + Math.random() * 30;
+      var x = Math.cos(angle) * dist;
+      var z = Math.sin(angle) * dist;
+      var t = types[i % 3];
+      buildGroundTarget(x, z, t);
+    }
   }
 
   /* ============================================================ MISSILES & BOMBS */
@@ -1132,10 +1137,139 @@ void main(){
     input[e.code] = false;
   });
 
+  /* ============================================================ MISSION DEFINITIONS */
+  const MISSIONS = [
+    { id:"m01", name:"TRAINING DAY", type:"dogfight", desc:"Shoot down 1 MiG-35", kills:1, enemyHp:60, enemyFireRate:3.5, ammo:10, bombs:0 },
+    { id:"m02", name:"FIRST BLOOD", type:"dogfight", desc:"Shoot down 1 MiG-35", kills:1, enemyHp:80, enemyFireRate:3.0, ammo:8, bombs:0 },
+    { id:"m03", name:"STRIKE PACKAGE", type:"strike", desc:"Destroy 4 ground targets", targets:4, bombs:6, ammo:2, enemyAir:false },
+    { id:"m04", name:"ESCORT RUN", type:"survival", desc:"Survive 60 seconds", timeLimit:60, enemyHp:70, enemyFireRate:3.0, ammo:6, bombs:0 },
+    { id:"m05", name:"DOUBLE TROUBLE", type:"dogfight", desc:"Shoot down 2 MiG-35s", kills:2, enemyHp:70, enemyFireRate:2.8, ammo:10, bombs:0 },
+    { id:"m06", name:"DEEP STRIKE", type:"strike", desc:"Destroy 6 ground targets", targets:6, bombs:8, ammo:2, enemyAir:false },
+    { id:"m07", name:"ACE PILOT", type:"dogfight", desc:"Shoot down 3 MiG-35s", kills:3, enemyHp:75, enemyFireRate:2.5, ammo:12, bombs:0 },
+    { id:"m08", name:"MIXED BAG", type:"mixed", desc:"Destroy 4 targets + 1 enemy", kills:1, targets:4, enemyHp:80, enemyFireRate:2.8, bombs:6, ammo:6 },
+    { id:"m09", name:"NIGHT RAID", type:"strike", desc:"Destroy 8 ground targets", targets:8, bombs:10, ammo:2, enemyAir:false },
+    { id:"m10", name:"SURVIVOR", type:"survival", desc:"Survive 90 seconds", timeLimit:90, enemyHp:80, enemyFireRate:2.5, ammo:8, bombs:0 },
+    { id:"m11", name:"TRIPLE THREAT", type:"dogfight", desc:"Shoot down 3 MiG-35s", kills:3, enemyHp:85, enemyFireRate:2.3, ammo:12, bombs:0 },
+    { id:"m12", name:"STRIKE FORCE", type:"strike", desc:"Destroy 10 ground targets", targets:10, bombs:12, ammo:4, enemyAir:false },
+    { id:"m13", name:"COMBO MISSION", type:"mixed", desc:"Destroy 6 targets + 2 enemies", kills:2, targets:6, enemyHp:75, enemyFireRate:2.5, bombs:8, ammo:8 },
+    { id:"m14", name:"IRON HAND", type:"strike", desc:"Destroy 12 ground targets", targets:12, bombs:14, ammo:4, enemyAir:false },
+    { id:"m15", name:"ENDURANCE", type:"survival", desc:"Survive 120 seconds", timeLimit:120, enemyHp:90, enemyFireRate:2.2, ammo:10, bombs:0 },
+    { id:"m16", name:"SQUADRON LEADER", type:"dogfight", desc:"Shoot down 4 MiG-35s", kills:4, enemyHp:85, enemyFireRate:2.2, ammo:14, bombs:0 },
+    { id:"m17", name:"HEAVY STRIKE", type:"mixed", desc:"Destroy 8 targets + 2 enemies", kills:2, targets:8, enemyHp:80, enemyFireRate:2.3, bombs:10, ammo:8 },
+    { id:"m18", name:"BLITZKRIEG", type:"strike", desc:"Destroy 14 targets fast", targets:14, bombs:16, ammo:4, enemyAir:false, timeLimit:180 },
+    { id:"m19", name:"DOGPILE", type:"dogfight", desc:"Shoot down 5 MiG-35s", kills:5, enemyHp:85, enemyFireRate:2.0, ammo:16, bombs:0 },
+    { id:"m20", name:"FORTRESS", type:"survival", desc:"Survive 150 seconds", timeLimit:150, enemyHp:100, enemyFireRate:2.0, ammo:12, bombs:0 },
+    { id:"m21", name:"TOTAL WAR", type:"mixed", desc:"Destroy 10 targets + 3 enemies", kills:3, targets:10, enemyHp:85, enemyFireRate:2.0, bombs:12, ammo:10 },
+    { id:"m22", name:"ACE OF ACES", type:"dogfight", desc:"Shoot down 6 MiG-35s", kills:6, enemyHp:90, enemyFireRate:1.8, ammo:18, bombs:0 },
+    { id:"m23", name:"CARPET BOMB", type:"strike", desc:"Destroy 16 ground targets", targets:16, bombs:18, ammo:4, enemyAir:false },
+    { id:"m24", name:"HELLFIRE", type:"mixed", desc:"Destroy 12 targets + 4 enemies", kills:4, targets:12, enemyHp:90, enemyFireRate:1.8, bombs:14, ammo:12 },
+    { id:"m25", name:"LAST STAND", type:"survival", desc:"Survive 180 seconds", timeLimit:180, enemyHp:110, enemyFireRate:1.8, ammo:14, bombs:0 },
+    { id:"m26", name:"TOP GUN", type:"dogfight", desc:"Shoot down 8 MiG-35s", kills:8, enemyHp:90, enemyFireRate:1.6, ammo:20, bombs:0 },
+    { id:"m27", name:"OVERLORD", type:"mixed", desc:"Destroy 14 targets + 5 enemies", kills:5, targets:14, enemyHp:90, enemyFireRate:1.6, bombs:16, ammo:14 },
+    { id:"m28", name:"INFERNO", type:"strike", desc:"Destroy 20 targets fast", targets:20, bombs:22, ammo:6, enemyAir:false, timeLimit:200 },
+    { id:"m29", name:"SKY KINGS", type:"dogfight", desc:"Shoot down 10 MiG-35s", kills:10, enemyHp:95, enemyFireRate:1.5, ammo:24, bombs:0 },
+    { id:"m30", name:"FINAL FANTASY", type:"mixed", desc:"Destroy 16 targets + 6 enemies", kills:6, targets:16, enemyHp:95, enemyFireRate:1.5, bombs:18, ammo:16 },
+  ];
+  let missionConfig = MISSIONS[0];
+  let missionKills = 0;
+  let missionTargetsDestroyed = 0;
+
+  /* build mission list UI */
+  (function buildMissionList() {
+    var list = document.getElementById("missionList");
+    if (!list) return;
+    MISSIONS.forEach(function (m, idx) {
+      var el = document.createElement("div");
+      el.className = "missionItem" + (idx === 0 ? " active" : "");
+      el.dataset.mid = m.id;
+      el.innerHTML = '<span class="mi-name">' + m.name + '</span><br><span class="mi-desc">' + m.desc + "</span>";
+      el.addEventListener("click", function () {
+        document.querySelectorAll(".missionItem").forEach(function (e) { e.classList.remove("active"); });
+        el.classList.add("active");
+        missionConfig = MISSIONS[idx];
+      });
+      list.appendChild(el);
+    });
+  })();
+
+  /* ============================================================ TOUCH CONTROLS */
+  const isTouch = ("ontouchstart" in window) || navigator.maxTouchPoints > 0;
+  const touchState = { joyX: 0, joyY: 0, fire: false, boost: false, slow: false };
+  if (isTouch) {
+    var tc = document.getElementById("touchControls");
+    if (tc) tc.classList.add("active");
+    var joyZone = document.getElementById("joyZone");
+    var joyKnob = document.getElementById("joyKnob");
+    var joyActive = false;
+    var joyId = -1;
+    var joyRect = null;
+    function joyStart(e) {
+      e.preventDefault();
+      var t = e.changedTouches[0];
+      joyActive = true; joyId = t.identifier;
+      joyRect = joyZone.getBoundingClientRect();
+      joyMove(e);
+    }
+    function joyMove(e) {
+      if (!joyActive) return;
+      e.preventDefault();
+      var tx = 0, ty = 0;
+      for (var i = 0; i < e.touches.length; i++) {
+        if (e.touches[i].identifier === joyId) { tx = e.touches[i].clientX; ty = e.touches[i].clientY; break; }
+      }
+      if (!joyRect) return;
+      var cx = joyRect.left + joyRect.width / 2;
+      var cy = joyRect.top + joyRect.height / 2;
+      var dx = tx - cx;
+      var dy = ty - cy;
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      var maxR = joyRect.width / 2 - 20;
+      if (dist > maxR) { dx = (dx / dist) * maxR; dy = (dy / dist) * maxR; }
+      touchState.joyX = dx / maxR;
+      touchState.joyY = dy / maxR;
+      joyKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
+    }
+    function joyEnd(e) {
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === joyId) { joyActive = false; joyId = -1; break; }
+      }
+      touchState.joyX = 0; touchState.joyY = 0;
+      joyKnob.style.transform = "";
+    }
+    joyZone.addEventListener("touchstart", joyStart, { passive: false });
+    joyZone.addEventListener("touchmove", joyMove, { passive: false });
+    joyZone.addEventListener("touchend", joyEnd);
+    joyZone.addEventListener("touchcancel", joyEnd);
+    function bindBtn(id, onDown, onUp) {
+      var b = document.getElementById(id);
+      if (!b) return;
+      b.addEventListener("touchstart", function (e) { e.preventDefault(); onDown(); }, { passive: false });
+      b.addEventListener("touchend", function (e) { e.preventDefault(); if (onUp) onUp(); }, { passive: false });
+      b.addEventListener("touchcancel", function (e) { e.preventDefault(); if (onUp) onUp(); });
+    }
+    bindBtn("tFire", function () { touchState.fire = true; input["Space"] = true; }, function () { touchState.fire = false; input["Space"] = false; });
+    bindBtn("tWeapon", function () {
+      if (state === "playing") {
+        player.weapon = player.weapon === "missile" ? "bomb" : "missile";
+        SkyAudio.uiClick();
+        updateWeaponHud();
+      }
+    });
+    bindBtn("tView", function () {
+      if (state === "playing") {
+        cameraMode = cameraMode === "chase" ? "cockpit" : "chase";
+        cockpit.group.visible = cameraMode === "cockpit";
+      }
+    });
+    bindBtn("tBoost", function () { touchState.boost = true; input["ShiftLeft"] = true; }, function () { touchState.boost = false; input["ShiftLeft"] = false; });
+    bindBtn("tThrottleDn", function () { touchState.slow = true; input["ControlLeft"] = true; }, function () { touchState.slow = false; input["ControlLeft"] = false; });
+  }
+
   /* ============================================================ GAME STATE / MISSIONS */
   let state = "menu"; // menu | playing | over
-  let mission = "dogfight"; // dogfight | strike
+  let mission = "dogfight";
   let missionTimer = 0;
+  let missionTimeLimit = 0;
   let incomingAlertTimer = 0;
   let lastLockBeep = 0;
   let lastWarning = 0;
@@ -1151,23 +1285,53 @@ void main(){
     state = "playing";
     msgOverlay.style.display = "none";
     clock.getDelta();
-    if (mission === "strike") {
-      setupBombingTargets();
-      player.bombs = 6;
-      player.ammo = 4;
+    var cfg = missionConfig;
+    mission = cfg.type;
+    missionTimer = 0;
+    missionTimeLimit = cfg.timeLimit || 0;
+    missionKills = 0;
+    missionTargetsDestroyed = 0;
+    player.health = player.maxHealth;
+    player.alive = true;
+    player.crashing = false;
+    player.obj.visible = true;
+    player.obj.position.set(0, 120, 0);
+    player.obj.rotation.set(0, 0, 0);
+    player.throttle = 0.6;
+
+    // Ground targets for strike/mixed
+    if (cfg.type === "strike" || cfg.type === "mixed") {
+      setupBombingTargets(cfg.targets || 4);
+      player.bombs = cfg.bombs || 6;
+      player.ammo = cfg.ammo || 2;
       player.weapon = "bomb";
     } else {
-      player.bombs = 0;
-      player.ammo = 8;
+      player.bombs = cfg.bombs || 0;
+      player.ammo = cfg.ammo || 8;
       player.weapon = "missile";
       while (targetGroup.children.length) targetGroup.remove(targetGroup.children[0]);
       groundTargets.length = 0;
     }
+
+    // Enemy setup
+    enemy.alive = true;
+    enemy.crashing = false;
+    enemy.obj.visible = true;
+    enemy.health = cfg.enemyHp || 80;
+    enemy.maxHealth = cfg.enemyHp || 80;
+    enemy.missileFireRate = cfg.enemyFireRate || 3.0;
+    enemy.obj.position.set(80, 150, -200);
+    enemy.obj.rotation.set(0, 0, 0);
+    enemyKillsRemaining = cfg.kills || (cfg.type === "dogfight" ? 1 : 0);
+    enemyActive = (cfg.type !== "strike" || cfg.enemyAir !== false) && (cfg.kills > 0 || cfg.type === "dogfight" || cfg.type === "survival" || cfg.type === "mixed");
+
     updateWeaponHud();
   }
 
+  let enemyKillsRemaining = 1;
+  let enemyActive = true;
+
   startBtn.addEventListener("click", function () {
-    mission = document.querySelector('input[name="mission"]:checked').value;
     startGame();
   });
 
@@ -1178,7 +1342,7 @@ void main(){
     const sub = document.getElementById("resultSub");
     const sub2 = document.getElementById("resultSub2");
     if (win) {
-      sub.textContent = mission === "dogfight" ? "MiG-35 eliminated. Outstanding." : "All targets destroyed. Strike successful.";
+      sub.textContent = missionConfig.name + " complete. Outstanding, pilot.";
       SkyAudio.success();
     } else {
       sub.textContent = "You were shot down.";
@@ -1194,12 +1358,21 @@ void main(){
   }
 
   function checkMissionComplete() {
-    if (mission === "dogfight" && !enemy.alive) {
-      endGame(true);
-    } else if (mission === "strike") {
-      const aliveTargets = groundTargets.filter(function (t) { return t.alive; });
-      if (aliveTargets.length === 0) endGame(true);
+    var cfg = missionConfig;
+    if (cfg.type === "dogfight") {
+      if (missionKills >= cfg.kills) { endGame(true); return; }
+    } else if (cfg.type === "strike") {
+      var aliveTargets = groundTargets.filter(function (t) { return t.alive; });
+      if (aliveTargets.length === 0) { endGame(true); return; }
+      if (cfg.timeLimit && missionTimer >= cfg.timeLimit) { endGame(false); return; }
+    } else if (cfg.type === "survival") {
+      if (missionTimer >= cfg.timeLimit) { endGame(true); return; }
+    } else if (cfg.type === "mixed") {
+      var aliveT = groundTargets.filter(function (t) { return t.alive; });
+      if (missionKills >= cfg.kills && aliveT.length === 0) { endGame(true); return; }
     }
+    // universal time limit
+    if (cfg.timeLimit && cfg.type !== "survival" && missionTimer >= cfg.timeLimit) { endGame(false); }
   }
 
   /* ============================================================ LOCK-ON SYSTEM */
@@ -1295,6 +1468,11 @@ void main(){
     if (input["KeyD"]) roll -= 1;
     if (input["KeyQ"]) yaw += 1;
     if (input["KeyE"]) yaw -= 1;
+    // Touch joystick input
+    if (isTouch) {
+      pitch += -touchState.joyY;
+      roll += touchState.joyX;
+    }
 
     player.obj.rotateX(pitch * 1.2 * dt);
     player.obj.rotateZ(roll * 2.4 * dt);
@@ -1559,6 +1737,28 @@ void main(){
     ).normalize();
     fighter.crashTimer = 0;
     fighter.crashEmitAcc = 0;
+    // Track kills for mission progress
+    if (fighter === enemy) {
+      missionKills++;
+      enemyKillsRemaining--;
+      // Respawn enemy if more kills needed
+      if (enemyKillsRemaining > 0 && state === "playing") {
+        setTimeout(function () {
+          if (state !== "playing") return;
+          enemy.alive = true;
+          enemy.crashing = false;
+          enemy.obj.visible = true;
+          enemy.health = missionConfig.enemyHp || 80;
+          enemy.maxHealth = enemy.health;
+          enemy.obj.position.set(
+            (Math.random() - 0.5) * 200,
+            100 + Math.random() * 100,
+            -200 - Math.random() * 200
+          );
+          enemy.obj.rotation.set(0, 0, 0);
+        }, 1500);
+      }
+    }
     // If player dies, switch to chase cam to watch the crash
     if (fighter === player) {
       cameraMode = "chase";
@@ -1642,13 +1842,16 @@ void main(){
       if (fighter === player) {
         setTimeout(function () { endGame(false); }, 800);
       } else {
-        setTimeout(function () { endGame(true); }, 800);
+        // Only end game if all kills achieved; otherwise respawn handles it
+        if (enemyKillsRemaining <= 0) setTimeout(function () { endGame(true); }, 800);
+        else setTimeout(checkMissionComplete, 800);
       }
     }
   }
 
   function destroyGroundTarget(target) {
     target.alive = false;
+    missionTargetsDestroyed++;
     spawnExplosion(target.obj.position.clone().add(new THREE.Vector3(0, 8, 0)), 2.0);
     setTimeout(function () {
       spawnExplosion(target.obj.position.clone().add(jitter(4)), 1.5);
@@ -1717,6 +1920,8 @@ void main(){
   const weaponName = document.getElementById("weaponName");
   const weaponCount = document.getElementById("weaponCount");
   const missionTag = document.getElementById("missionTag");
+  const missionTimeTag = document.getElementById("missionTimeTag");
+  const missionProgressTag = document.getElementById("missionProgressTag");
   const targetList = document.getElementById("targetList");
   const incomingWarning = document.getElementById("incomingWarning");
   const lockStatus = document.getElementById("lockStatus");
@@ -1744,7 +1949,24 @@ void main(){
     ammoVal.textContent = player.ammo;
     updateWeaponHud();
 
-    if (missionTag) missionTag.textContent = mission === "dogfight" ? "MISSION: DOGFIGHT" : "MISSION: STRIKE";
+    if (missionTag) missionTag.textContent = "MISSION: " + missionConfig.name;
+    if (missionTimeTag) {
+      if (missionConfig.timeLimit) {
+        var remain = Math.max(0, missionConfig.timeLimit - missionTimer);
+        missionTimeTag.textContent = "TIME: " + Math.ceil(remain) + "s";
+        missionTimeTag.style.display = "block";
+      } else {
+        missionTimeTag.style.display = "none";
+      }
+    }
+    if (missionProgressTag) {
+      var prog = "";
+      if (missionConfig.kills) prog += "KILLS: " + missionKills + "/" + missionConfig.kills;
+      if (missionConfig.targets) prog += (prog ? "  " : "") + "TARGETS: " + missionTargetsDestroyed + "/" + missionConfig.targets;
+      if (missionConfig.timeLimit && !missionConfig.kills && !missionConfig.targets) prog = "SURVIVE: " + Math.ceil(missionConfig.timeLimit - missionTimer) + "s";
+      missionProgressTag.textContent = prog;
+      missionProgressTag.style.display = prog ? "block" : "none";
+    }
 
     /* target list for bombing */
     if (targetList) {
@@ -1826,9 +2048,10 @@ void main(){
     if (state === "playing") {
       missionTimer += dt;
       updatePlayer(dt);
-      if (mission === "dogfight" || (mission === "strike" && enemy.alive)) {
-        updateEnemy(dt);
+      if (enemyActive && (enemy.alive || enemyKillsRemaining > 0)) {
+        if (enemy.alive) updateEnemy(dt);
       }
+      checkMissionComplete();
       updateCrashingFighter(player, dt);
       updateCrashingFighter(enemy, dt);
       updateLockOn(dt);
