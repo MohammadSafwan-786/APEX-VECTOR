@@ -200,6 +200,7 @@
   /* ---- terrain.glb (enhanced ground detail) ---- */
   const gltfLoader = new THREE.GLTFLoader();
   let terrainGroup = null;
+  let terrainMeshes = [];
   gltfLoader.load(
     "terrain.glb",
     function (gltf) {
@@ -221,6 +222,11 @@
         }
       });
       scene.add(terrainGroup);
+      // Collect terrain meshes for collision detection
+      terrainMeshes = [];
+      terrainGroup.traverse(function (o) {
+        if (o.isMesh) terrainMeshes.push(o);
+      });
       console.log("[skystrike] terrain.glb loaded");
     },
     undefined,
@@ -631,6 +637,180 @@ void main(){
     }
   }
 
+  /* ============================================================ 3D COCKPIT */
+  let cockpit = null;
+  let cockpitParts = {};
+  let cameraMode = "chase"; // chase | cockpit
+
+  function buildCockpit() {
+    const g = new THREE.Group();
+
+    const mDash = new THREE.MeshStandardMaterial({ color: 0x1a1a1e, metalness: 0.4, roughness: 0.7 });
+    const mPanel = new THREE.MeshStandardMaterial({ color: 0x2a2a30, metalness: 0.5, roughness: 0.6 });
+    const mDark = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, metalness: 0.6, roughness: 0.5 });
+    const mGlass = new THREE.MeshStandardMaterial({
+      color: 0x0a1a22, metalness: 0.9, roughness: 0.05,
+      transparent: true, opacity: 0.35, emissive: 0x081018,
+    });
+    const mStick = new THREE.MeshStandardMaterial({ color: 0x1c1c20, metalness: 0.7, roughness: 0.4 });
+    const mRed = new THREE.MeshStandardMaterial({ color: 0x331010, metalness: 0.3, roughness: 0.5, emissive: 0xff2020, emissiveIntensity: 0.6 });
+    const mGreen = new THREE.MeshStandardMaterial({ color: 0x103310, metalness: 0.3, roughness: 0.5, emissive: 0x20ff40, emissiveIntensity: 0.5 });
+    const mAmber = new THREE.MeshStandardMaterial({ color: 0x332010, metalness: 0.3, roughness: 0.5, emissive: 0xffb020, emissiveIntensity: 0.5 });
+    const mBlue = new THREE.MeshStandardMaterial({ color: 0x102033, metalness: 0.3, roughness: 0.5, emissive: 0x20a0ff, emissiveIntensity: 0.5 });
+
+    // Main dashboard - curved shape wrapping around pilot
+    const dashShape = new THREE.Shape();
+    dashShape.moveTo(-2.2, 0);
+    dashShape.lineTo(2.2, 0);
+    dashShape.lineTo(2.0, 0.5);
+    dashShape.lineTo(-2.0, 0.5);
+    dashShape.lineTo(-2.2, 0);
+    const dashGeo = new THREE.ExtrudeGeometry(dashShape, { depth: 0.8, bevelEnabled: false, bevelThickness: 0.05, bevelSize: 0.05, bevelSegments: 1 });
+    const dash = new THREE.Mesh(dashGeo, mDash);
+    dash.position.set(0, -1.15, 1.2);
+    g.add(dash);
+
+    // Left and right side consoles
+    [-1, 1].forEach(function (s) {
+      const side = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 1.6), mPanel);
+      side.position.set(s * 1.7, -0.85, 1.0);
+      side.rotation.y = s * 0.3;
+      g.add(side);
+    });
+
+    // Canopy frame - arcs over the pilot
+    const canopyGeo = new THREE.SphereGeometry(2.0, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.42);
+    const canopy = new THREE.Mesh(canopyGeo, mGlass);
+    canopy.position.set(0, -0.3, 0.8);
+    canopy.scale.set(1.0, 0.7, 1.4);
+    g.add(canopy);
+
+    // Canopy frame rails
+    [-1, 1].forEach(function (s) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 2.8), mDark);
+      rail.position.set(s * 1.0, -0.1, 0.8);
+      g.add(rail);
+    });
+    // Canopy frame front arch
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.05, 8, 16, Math.PI), mDark);
+    arch.position.set(0, -0.1, -0.6);
+    arch.rotation.x = Math.PI / 2;
+    g.add(arch);
+
+    // ---- MFD (Multi-Function Display) screens ----
+    function makeMFD(x, label, screenColor) {
+      const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, 0.04), mDark);
+      bezel.position.set(x, -0.78, 1.55);
+      g.add(bezel);
+      const screen = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.36, 0.26),
+        new THREE.MeshBasicMaterial({ color: screenColor, transparent: true, opacity: 0.85 })
+      );
+      screen.position.set(x, -0.78, 1.58);
+      g.add(screen);
+      // Screen border lines
+      const border = new THREE.Mesh(
+        new THREE.RingGeometry(0.05, 0.06, 16),
+        new THREE.MeshBasicMaterial({ color: 0x00ff80, transparent: true, opacity: 0.4 })
+      );
+      border.position.set(x, -0.78, 1.585);
+      g.add(border);
+      return screen;
+    }
+
+    const mfdLeft = makeMFD(-0.55, "RADAR", 0x001a0a);
+    const mfdRight = makeMFD(0.55, "WEAPONS", 0x0a0010);
+
+    // Center HUD glass plate
+    const hudGlass = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.8, 0.6),
+      new THREE.MeshBasicMaterial({ color: 0x102030, transparent: true, opacity: 0.15, side: THREE.DoubleSide })
+    );
+    hudGlass.position.set(0, -0.2, 2.8);
+    g.add(hudGlass);
+
+    // ---- Joystick (center console) ----
+    const stickBase = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.08, 12), mDark);
+    stickBase.position.set(0, -1.25, 1.9);
+    g.add(stickBase);
+    const stickShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.3, 8), mStick);
+    stickShaft.position.set(0, -1.05, 1.9);
+    g.add(stickShaft);
+    const stickGrip = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), mStick);
+    stickGrip.position.set(0, -0.9, 1.9);
+    g.add(stickGrip);
+    // Stick trigger
+    const trigger = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.04, 0.05), mRed);
+    trigger.position.set(0.04, -0.92, 1.88);
+    g.add(trigger);
+
+    // ---- Throttle quadrant (left side) ----
+    const throttleBase = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.3), mDark);
+    throttleBase.position.set(-1.3, -1.2, 1.8);
+    g.add(throttleBase);
+    const throttleHandle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.12, 0.04), mStick);
+    throttleHandle.position.set(-1.3, -1.1, 1.85);
+    g.add(throttleHandle);
+
+    // ---- Buttons on the dashboard ----
+    const buttons = [];
+    const btnColors = [mRed, mGreen, mAmber, mBlue, mRed, mGreen];
+    const btnPositions = [
+      [-1.0, -1.0], [-0.7, -1.0], [-0.4, -1.0],
+      [1.0, -1.0], [0.7, -1.0], [0.4, -1.0],
+    ];
+    btnPositions.forEach(function (pos, i) {
+      const mat = btnColors[i % btnColors.length];
+      const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 8), mat);
+      btn.position.set(pos[0], pos[1], 1.56);
+      g.add(btn);
+      buttons.push(btn);
+    });
+
+    // ---- RWR (Radar Warning Receiver) at top center ----
+    const rwrBezel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.03, 16), mDark);
+    rwrBezel.rotation.x = Math.PI / 2;
+    rwrBezel.position.set(0, -0.35, 1.55);
+    g.add(rwrBezel);
+    const rwrScreen = new THREE.Mesh(
+      new THREE.CircleGeometry(0.15, 16),
+      new THREE.MeshBasicMaterial({ color: 0x0a0000, transparent: true, opacity: 0.9 })
+    );
+    rwrScreen.position.set(0, -0.35, 1.575);
+    g.add(rwrScreen);
+
+    // ---- Compass strip at top ----
+    const compassStrip = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.5, 0.08),
+      new THREE.MeshBasicMaterial({ color: 0x080a0e, transparent: true, opacity: 0.7 })
+    );
+    compassStrip.position.set(0, -0.5, 1.55);
+    g.add(compassStrip);
+
+    // ---- Ejection seat headrest behind pilot ----
+    const headrest = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 0.1), mDark);
+    headrest.position.set(0, 0.3, -0.5);
+    g.add(headrest);
+
+    g.visible = false; // hidden until cockpit camera mode
+    // Will be re-parented to player.obj when player is created
+
+    return {
+      group: g,
+      mfdLeft: mfdLeft,
+      mfdRight: mfdRight,
+      rwrScreen: rwrScreen,
+      hudGlass: hudGlass,
+      compassStrip: compassStrip,
+      buttons: buttons,
+      stickGrip: stickGrip,
+      throttleHandle: throttleHandle,
+    };
+  }
+
+  cockpit = buildCockpit();
+  cockpitParts = cockpit;
+
   /* ============================================================ UTIL */
   function disposeObject(obj) {
     obj.traverse(function (o) {
@@ -647,6 +827,7 @@ void main(){
   const enemyBuild = buildJet(MIG_SCHEME);
   scene.add(playerBuild.group);
   scene.add(enemyBuild.group);
+  playerBuild.group.add(cockpit.group);
   playerBuild.group.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
   enemyBuild.group.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
 
@@ -721,7 +902,7 @@ void main(){
     gltfLoader.load(
       url,
       function (gltf) {
-        fitModelInto(fighter.obj, gltf.scene, targetLength, 0);
+        fitModelInto(fighter.obj, gltf.scene, targetLength, -Math.PI / 2);
         const rear = -targetLength * 0.46,
           front = targetLength * 0.02;
         fighter.nozzles = [
@@ -940,6 +1121,11 @@ void main(){
       SkyAudio.uiClick();
       updateWeaponHud();
     }
+    if (e.code === "KeyC" && state === "playing") {
+      cameraMode = cameraMode === "chase" ? "cockpit" : "chase";
+      SkyAudio.uiClick();
+      cockpit.group.visible = (cameraMode === "cockpit");
+    }
     if (state === "menu" && e.code === "Enter") startGame();
   });
   window.addEventListener("keyup", function (e) {
@@ -1126,9 +1312,15 @@ void main(){
     const speed = 26 + player.throttle * 50;
     const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(player.obj.quaternion);
     player.obj.position.addScaledVector(fwd, speed * dt);
-    if (player.obj.position.y < 8) player.obj.position.y = 8;
     if (player.obj.position.y > 950) player.obj.position.y = 950;
     player.speed = speed;
+
+    // Terrain / mountain collision — crash on impact
+    var terrainHit = checkTerrainCollision(player.obj.position, 2);
+    if (terrainHit && player.alive) {
+      spawnExplosion(terrainHit, 2.5);
+      destroyFighter(player);
+    }
 
     player.missileCooldown = Math.max(0, player.missileCooldown - dt);
     player.bombCooldown = Math.max(0, player.bombCooldown - dt);
@@ -1175,6 +1367,15 @@ void main(){
     }
 
     const currentForward = new THREE.Vector3(0, 0, 1).applyQuaternion(enemy.obj.quaternion);
+    // Terrain avoidance — steer up if approaching mountain
+    var terrainAhead = getTerrainHeight(
+      enemy.obj.position.x + currentForward.x * 40,
+      enemy.obj.position.z + currentForward.z * 40
+    );
+    if (terrainAhead > enemy.obj.position.y - 30) {
+      desiredForward.y += 0.6;
+      desiredForward.normalize();
+    }
     const targetQuat = new THREE.Quaternion().setFromUnitVectors(
       new THREE.Vector3(0, 0, 1),
       desiredForward
@@ -1183,9 +1384,15 @@ void main(){
 
     const finalSpeed = 32 + 6 * Math.sin(enemy.weaveT * 0.3);
     enemy.obj.position.addScaledVector(currentForward, finalSpeed * dt);
-    if (enemy.obj.position.y < 12) enemy.obj.position.y = 12;
     if (enemy.obj.position.y > 950) enemy.obj.position.y = 950;
     enemy.speed = finalSpeed;
+
+    // Terrain / mountain collision — crash on impact
+    var terrainHit = checkTerrainCollision(enemy.obj.position, 2);
+    if (terrainHit && enemy.alive) {
+      spawnExplosion(terrainHit, 2.5);
+      destroyFighter(enemy);
+    }
 
     enemy.missileCooldown -= dt;
     const angleToPlayer = currentForward.angleTo(toPlayer);
@@ -1270,6 +1477,11 @@ void main(){
         }
       }
       if (m.obj.position.y < 2) expired = true;
+      var mTerrainHit = checkTerrainCollision(m.obj.position, 1);
+      if (mTerrainHit) {
+        expired = true;
+        spawnExplosion(mTerrainHit, 1.5);
+      }
       if (m.life <= 0) expired = true;
 
       if (hit || expired) {
@@ -1295,6 +1507,11 @@ void main(){
       if (b.obj.position.y <= -17) {
         hit = true;
         b.obj.position.y = -17;
+      }
+      var bTerrainHit = checkTerrainCollision(b.obj.position, 1);
+      if (bTerrainHit) {
+        hit = true;
+        b.obj.position.copy(bTerrainHit);
       }
       for (let j = 0; j < groundTargets.length; j++) {
         const t = groundTargets[j];
@@ -1334,17 +1551,100 @@ void main(){
 
   function destroyFighter(fighter) {
     fighter.alive = false;
-    spawnExplosion(fighter.obj.position.clone(), 2.5);
-    setTimeout(function () {
-      for (let k = 0; k < 4; k++) {
-        spawnExplosion(fighter.obj.position.clone().add(jitter(3)), 1.2 + Math.random());
+    fighter.crashing = true;
+    fighter.crashSpin = new THREE.Vector3(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1
+    ).normalize();
+    fighter.crashTimer = 0;
+    fighter.crashEmitAcc = 0;
+    // If player dies, switch to chase cam to watch the crash
+    if (fighter === player) {
+      cameraMode = "chase";
+      cockpit.group.visible = false;
+    }
+  }
+
+  const _rayDown = new THREE.Vector3(0, -1, 0);
+  const _raycaster = new THREE.Raycaster();
+  function getTerrainHeight(x, z) {
+    if (terrainMeshes.length === 0) return -18;
+    _raycaster.set(new THREE.Vector3(x, 500, z), _rayDown);
+    _raycaster.far = 1000;
+    const hits = _raycaster.intersectObjects(terrainMeshes, false);
+    return hits.length > 0 ? hits[0].point.y : -18;
+  }
+
+  function checkTerrainCollision(pos, radius) {
+    if (terrainMeshes.length === 0) return null;
+    _raycaster.set(new THREE.Vector3(pos.x, 500, pos.z), _rayDown);
+    _raycaster.far = 1000;
+    const hits = _raycaster.intersectObjects(terrainMeshes, false);
+    if (hits.length > 0 && pos.y - radius < hits[0].point.y + 1) {
+      return hits[0].point;
+    }
+    return null;
+  }
+
+  function updateCrashingFighter(fighter, dt) {
+    if (!fighter.crashing) return;
+    fighter.crashTimer += dt;
+    fighter.crashEmitAcc += dt;
+
+    // Spiral/spin
+    fighter.obj.rotateX(fighter.crashSpin.x * 2.5 * dt);
+    fighter.obj.rotateY(fighter.crashSpin.y * 2.5 * dt);
+    fighter.obj.rotateZ(fighter.crashSpin.z * 2.5 * dt);
+
+    // Dive toward ground with gravity
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(fighter.obj.quaternion);
+    const speed = 25 + Math.min(60, fighter.crashTimer * 15);
+    fighter.obj.position.addScaledVector(fwd, speed * dt);
+    fighter.obj.position.y -= 12 * dt * Math.min(2, 1 + fighter.crashTimer * 0.3);
+
+    // Emit fire and smoke trail
+    while (fighter.crashEmitAcc > 0.02) {
+      fighter.crashEmitAcc -= 0.02;
+      fighter.nozzles.forEach(function (n) {
+        const wp = new THREE.Vector3();
+        n.getWorldPosition(wp);
+        const back = fwd.clone().negate();
+        spawnParticle(firePool, wp, back.clone().multiplyScalar(3).add(jitter(0.8)), 0.8, 0.5, 0.5);
+        spawnParticle(smokePool, wp, back.clone().multiplyScalar(1.5).add(jitter(0.5)), 1.6, 2.0, 2.0);
+        if (Math.random() < 0.3) {
+          spawnParticle(sparkPool, wp, back.clone().multiplyScalar(5).add(jitter(1.5)), 0.5, 0.4, 0.3);
+        }
+      });
+    }
+
+    // Ground or mountain impact
+    var impactPoint = null;
+    if (fighter.obj.position.y <= -15) {
+      impactPoint = fighter.obj.position.clone();
+      impactPoint.y = -15;
+    } else {
+      var hit = checkTerrainCollision(fighter.obj.position, 2);
+      if (hit) impactPoint = hit;
+    }
+    if (impactPoint) {
+      fighter.crashing = false;
+      fighter.obj.visible = false;
+      spawnExplosion(impactPoint, 3.0);
+      // Secondary explosions
+      for (var k = 0; k < 5; k++) {
+        (function (kk) {
+          setTimeout(function () {
+            spawnExplosion(impactPoint.clone().add(jitter(6)), 1.5 + Math.random());
+          }, kk * 120);
+        })(k);
       }
-    }, 140);
-    fighter.obj.visible = false;
-    setTimeout(function () {
-      checkMissionComplete();
-      if (mission === "dogfight") endGame(fighter === enemy);
-    }, 1000);
+      if (fighter === player) {
+        setTimeout(function () { endGame(false); }, 800);
+      } else {
+        setTimeout(function () { endGame(true); }, 800);
+      }
+    }
   }
 
   function destroyGroundTarget(target) {
@@ -1360,15 +1660,26 @@ void main(){
   /* ============================================================ CAMERA */
   const camQuat = new THREE.Quaternion().copy(player.obj.quaternion);
   function updateCamera(dt) {
-    if (player.alive) {
+    if (player.alive || player.crashing) {
       camQuat.slerp(player.obj.quaternion, Math.min(1, dt * 5));
-      const offset = new THREE.Vector3(0, 3.8, -14.5).applyQuaternion(camQuat);
-      const desired = player.obj.position.clone().add(offset);
-      camera.position.lerp(desired, Math.min(1, dt * 7));
-      const lookAt = player.obj.position
-        .clone()
-        .add(new THREE.Vector3(0, 1.6, 0).applyQuaternion(camQuat));
-      camera.lookAt(lookAt);
+      if (cameraMode === "cockpit" && player.alive) {
+        // First-person view from inside the cockpit
+        const offset = new THREE.Vector3(0, 0.15, 0.8).applyQuaternion(camQuat);
+        const desired = player.obj.position.clone().add(offset);
+        camera.position.lerp(desired, Math.min(1, dt * 12));
+        const lookAt = player.obj.position
+          .clone()
+          .add(new THREE.Vector3(0, 0, 10).applyQuaternion(camQuat));
+        camera.lookAt(lookAt);
+      } else {
+        const offset = new THREE.Vector3(0, 3.8, -14.5).applyQuaternion(camQuat);
+        const desired = player.obj.position.clone().add(offset);
+        camera.position.lerp(desired, Math.min(1, dt * (player.crashing ? 3 : 7)));
+        const lookAt = player.obj.position
+          .clone()
+          .add(new THREE.Vector3(0, 1.6, 0).applyQuaternion(camQuat));
+        camera.lookAt(lookAt);
+      }
     }
     if (shakeTime > 0) {
       const s = shakeAmp * shakeTime;
@@ -1377,6 +1688,18 @@ void main(){
       camera.position.z += (Math.random() * 2 - 1) * s;
     }
     sun.target.position.copy(player.obj.position);
+
+    // Animate cockpit controls
+    if (cameraMode === "cockpit" && cockpit) {
+      // Joystick tilts with pitch/roll input
+      const pitchIn = (input["KeyW"] ? 1 : 0) - (input["KeyS"] ? 1 : 0);
+      const rollIn = (input["KeyA"] ? 1 : 0) - (input["KeyD"] ? 1 : 0);
+      cockpit.stickGrip.rotation.x = pitchIn * 0.3;
+      cockpit.stickGrip.rotation.z = rollIn * 0.3;
+      // Throttle handle moves with throttle setting
+      cockpit.throttleHandle.position.z = 1.85 + player.throttle * 0.15;
+      cockpit.throttleHandle.position.y = -1.1 + player.throttle * 0.08;
+    }
   }
 
   /* ============================================================ HUD */
@@ -1506,6 +1829,8 @@ void main(){
       if (mission === "dogfight" || (mission === "strike" && enemy.alive)) {
         updateEnemy(dt);
       }
+      updateCrashingFighter(player, dt);
+      updateCrashingFighter(enemy, dt);
       updateLockOn(dt);
       checkIncomingMissile(dt);
       updateMissiles(dt);

@@ -125,6 +125,7 @@
     background:repeating-linear-gradient(0deg, rgba(94,231,255,0.015) 0px, rgba(94,231,255,0.015) 1px, transparent 1px, transparent 3px);
     opacity:0.5;}
 </style>
+  <script type="module" crossorigin src="./assets/index-Cq7O8xKB.js"></script>
 </head>
 <body>
 
@@ -156,7 +157,7 @@
 </div>
 <div id="lockText" class="hud">LOCKED — FOX 3</div>
 <div id="lockStatus" class="hud" style="color:var(--cy);">SEARCH</div>
-<div id="crosshair-msg" class="hud">SPACE fire · W/S pitch · A/D roll · Q/E yaw · SHIFT afterburner · F switch weapon · C cockpit view</div>
+<div id="crosshair-msg" class="hud">SPACE fire · W/S pitch · A/D roll · Q/E yaw · SHIFT afterburner · F switch weapon</div>
 
 <div id="radar" class="hud panel">
   <div class="ring" style="width:96%;height:96%;top:2%;left:2%;"></div>
@@ -208,7 +209,7 @@
        <span class="key">A</span><span class="key">D</span> roll &nbsp;
        <span class="key">Q</span><span class="key">E</span> yaw</p>
     <p><span class="key">SHIFT</span> afterburner &nbsp; <span class="key">CTRL</span> throttle down</p>
-    <p><span class="key">SPACE</span> fire weapon &nbsp; <span class="key">F</span> switch missile / bomb &nbsp; <span class="key">C</span> cockpit view</p>
+    <p><span class="key">SPACE</span> fire weapon &nbsp; <span class="key">F</span> switch missile / bomb</p>
     <button id="startBtn">ENGAGE</button>
   </div>
 </div>
@@ -217,19 +218,5 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script type="module" src="audio.js"></script>
-<script type="module" src="game.js"></script>
-<script type="module">
-/* mission selector visual toggle */
-document.querySelectorAll('.missionOpt').forEach(function(opt){
-  opt.addEventListener('click', function(){
-    document.querySelectorAll('.missionOpt').forEach(function(o){o.classList.remove('active');});
-    opt.classList.add('active');
-    opt.querySelector('input').checked = true;
-    SkyAudio.init();
-    SkyAudio.uiBeep();
-  });
-});
-</script>
 </body>
 </html>
