@@ -12,7 +12,7 @@
     antialias: true,
     powerPreference: "high-performance",
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -44,11 +44,11 @@
   const sun = new THREE.DirectionalLight(0xfff2d8, 1.7);
   sun.position.set(700, 1000, -400);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -500;
-  sun.shadow.camera.right = 500;
-  sun.shadow.camera.top = 500;
-  sun.shadow.camera.bottom = -500;
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.camera.left = -300;
+  sun.shadow.camera.right = 300;
+  sun.shadow.camera.top = 300;
+  sun.shadow.camera.bottom = -300;
   sun.shadow.camera.near = 100;
   sun.shadow.camera.far = 2500;
   sun.shadow.bias = -0.0004;
@@ -131,7 +131,7 @@
     fog: true,
   });
   const clouds = [];
-  for (let i = 0; i < 110; i++) {
+  for (let i = 0; i < 40; i++) {
     const s = new THREE.Sprite(cloudMat);
     const ang = Math.random() * Math.PI * 2;
     const rad = 250 + Math.random() * 2200;
@@ -533,10 +533,10 @@ void main(){
     pool.points.geometry.attributes.aAlpha.needsUpdate = true;
   }
 
-  const firePool = createPool(700, 0xffa030, THREE.AdditiveBlending);
-  const smokePool = createPool(800, 0xaab0b5, THREE.NormalBlending);
-  const sparkPool = createPool(600, 0xffcf80, THREE.AdditiveBlending);
-  const debrisPool = createPool(300, 0x886644, THREE.NormalBlending);
+  const firePool = createPool(300, 0xffa030, THREE.AdditiveBlending);
+  const smokePool = createPool(350, 0xaab0b5, THREE.NormalBlending);
+  const sparkPool = createPool(200, 0xffcf80, THREE.AdditiveBlending);
+  const debrisPool = createPool(80, 0x886644, THREE.NormalBlending);
 
   function randSphereDir() {
     const v = new THREE.Vector3(
@@ -571,17 +571,17 @@ void main(){
 
   function spawnExplosion(pos, scale) {
     scale = scale === undefined ? 1 : scale;
-    const sparkCount = Math.round(42 * scale);
+    const sparkCount = Math.round(20 * scale);
     for (let i = 0; i < sparkCount; i++) {
       const d = randSphereDir();
       spawnParticle(sparkPool, pos, d.multiplyScalar(7 + Math.random() * 18 * scale), 0.6 * scale, 0.5 + Math.random() * 0.5, 0.4);
     }
-    const smokeCount = Math.round(28 * scale);
+    const smokeCount = Math.round(14 * scale);
     for (let i = 0; i < smokeCount; i++) {
       const d = randSphereDir();
       spawnParticle(smokePool, pos, d.multiplyScalar(1.5 + Math.random() * 5), 1.8 * scale, 2.2 + Math.random() * 1.2, 1.8);
     }
-    const debrisCount = Math.round(12 * scale);
+    const debrisCount = Math.round(6 * scale);
     for (let i = 0; i < debrisCount; i++) {
       const d = randSphereDir();
       spawnParticle(debrisPool, pos, d.multiplyScalar(4 + Math.random() * 10 * scale), 0.4 * scale, 1.5 + Math.random(), 0.3);
@@ -895,6 +895,7 @@ void main(){
     wrapper.scale.setScalar(scale);
     if (extraYRotation) wrapper.rotation.y = extraYRotation;
     root.add(wrapper);
+    root.userData.glbWrapper = wrapper;
     return scale * maxDim;
   }
 
@@ -1130,6 +1131,7 @@ void main(){
       cameraMode = cameraMode === "chase" ? "cockpit" : "chase";
       SkyAudio.uiClick();
       cockpit.group.visible = (cameraMode === "cockpit");
+      if (player.obj.userData.glbWrapper) player.obj.userData.glbWrapper.visible = (cameraMode !== "cockpit");
     }
     if (state === "menu" && e.code === "Enter") startGame();
   });
@@ -1259,6 +1261,7 @@ void main(){
       if (state === "playing") {
         cameraMode = cameraMode === "chase" ? "cockpit" : "chase";
         cockpit.group.visible = cameraMode === "cockpit";
+        if (player.obj.userData.glbWrapper) player.obj.userData.glbWrapper.visible = (cameraMode !== "cockpit");
       }
     });
     bindBtn("tBoost", function () { touchState.boost = true; input["ShiftLeft"] = true; }, function () { touchState.boost = false; input["ShiftLeft"] = false; });
@@ -1763,14 +1766,17 @@ void main(){
     if (fighter === player) {
       cameraMode = "chase";
       cockpit.group.visible = false;
+      if (player.obj.userData.glbWrapper) player.obj.userData.glbWrapper.visible = true;
     }
   }
 
   const _rayDown = new THREE.Vector3(0, -1, 0);
   const _raycaster = new THREE.Raycaster();
+  const _rayOrigin = new THREE.Vector3();
   function getTerrainHeight(x, z) {
     if (terrainMeshes.length === 0) return -18;
-    _raycaster.set(new THREE.Vector3(x, 500, z), _rayDown);
+    _rayOrigin.set(x, 500, z);
+    _raycaster.set(_rayOrigin, _rayDown);
     _raycaster.far = 1000;
     const hits = _raycaster.intersectObjects(terrainMeshes, false);
     return hits.length > 0 ? hits[0].point.y : -18;
@@ -1778,7 +1784,8 @@ void main(){
 
   function checkTerrainCollision(pos, radius) {
     if (terrainMeshes.length === 0) return null;
-    _raycaster.set(new THREE.Vector3(pos.x, 500, pos.z), _rayDown);
+    _rayOrigin.set(pos.x, 500, pos.z);
+    _raycaster.set(_rayOrigin, _rayDown);
     _raycaster.far = 1000;
     const hits = _raycaster.intersectObjects(terrainMeshes, false);
     if (hits.length > 0 && pos.y - radius < hits[0].point.y + 1) {
