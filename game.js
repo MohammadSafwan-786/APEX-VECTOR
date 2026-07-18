@@ -811,6 +811,17 @@ void main(){
   cockpit = buildCockpit();
   cockpitParts = cockpit;
 
+  function applyCockpitVisibility() {
+    if (!cockpit || !player) return;
+    var inCockpit = cameraMode === "cockpit";
+    cockpit.group.visible = inCockpit;
+    for (var i = 0; i < player.obj.children.length; i++) {
+      var child = player.obj.children[i];
+      if (child === cockpit.group) continue;
+      child.visible = !inCockpit;
+    }
+  }
+
   /* ============================================================ UTIL */
   function disposeObject(obj) {
     obj.traverse(function (o) {
@@ -1130,8 +1141,7 @@ void main(){
     if (e.code === "KeyC" && state === "playing") {
       cameraMode = cameraMode === "chase" ? "cockpit" : "chase";
       SkyAudio.uiClick();
-      cockpit.group.visible = (cameraMode === "cockpit");
-      if (player.obj.userData.glbWrapper) player.obj.userData.glbWrapper.visible = (cameraMode !== "cockpit");
+      applyCockpitVisibility();
     }
     if (state === "menu" && e.code === "Enter") startGame();
   });
@@ -1260,8 +1270,7 @@ void main(){
     bindBtn("tView", function () {
       if (state === "playing") {
         cameraMode = cameraMode === "chase" ? "cockpit" : "chase";
-        cockpit.group.visible = cameraMode === "cockpit";
-        if (player.obj.userData.glbWrapper) player.obj.userData.glbWrapper.visible = (cameraMode !== "cockpit");
+        applyCockpitVisibility();
       }
     });
     bindBtn("tBoost", function () { touchState.boost = true; input["ShiftLeft"] = true; }, function () { touchState.boost = false; input["ShiftLeft"] = false; });
@@ -1765,8 +1774,7 @@ void main(){
     // If player dies, switch to chase cam to watch the crash
     if (fighter === player) {
       cameraMode = "chase";
-      cockpit.group.visible = false;
-      if (player.obj.userData.glbWrapper) player.obj.userData.glbWrapper.visible = true;
+      applyCockpitVisibility();
     }
   }
 
@@ -1873,13 +1881,13 @@ void main(){
     if (player.alive || player.crashing) {
       camQuat.slerp(player.obj.quaternion, Math.min(1, dt * 5));
       if (cameraMode === "cockpit" && player.alive) {
-        // First-person view from inside the cockpit
-        const offset = new THREE.Vector3(0, 0.15, 0.8).applyQuaternion(camQuat);
+        // First-person view from inside the cockpit — seated position, looking forward over the dash
+        const offset = new THREE.Vector3(0, -0.35, 0.3).applyQuaternion(camQuat);
         const desired = player.obj.position.clone().add(offset);
         camera.position.lerp(desired, Math.min(1, dt * 12));
         const lookAt = player.obj.position
           .clone()
-          .add(new THREE.Vector3(0, 0, 10).applyQuaternion(camQuat));
+          .add(new THREE.Vector3(0, -0.25, 10).applyQuaternion(camQuat));
         camera.lookAt(lookAt);
       } else {
         const offset = new THREE.Vector3(0, 3.8, -14.5).applyQuaternion(camQuat);
