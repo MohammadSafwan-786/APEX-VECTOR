@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SKY STRIKE — F-22 Combat Simulator</title>
+<style>
+  :root{
+    --cy:#5ee7ff; --am:#ffb020; --rd:#ff4d4d; --grn:#5dff9b;
+    --panel: rgba(6,14,20,0.62); --panel-b: rgba(94,231,255,0.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#000;
+    font-family: Consolas, "Courier New", monospace; color:#dff6ff; user-select:none;}
+  #canvasWrap{position:fixed;inset:0;}
+  canvas{display:block;}
+
+  .hud{position:fixed;pointer-events:none;z-index:5;}
+  .panel{background:var(--panel);border:1px solid var(--panel-b);border-radius:6px;
+    box-shadow:0 0 18px rgba(94,231,255,0.08), inset 0 0 18px rgba(94,231,255,0.05);
+    backdrop-filter: blur(2px);}
+
+  /* ---- top bar ---- */
+  #topbar{top:14px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;}
+  .readout{padding:8px 14px;font-size:13px;letter-spacing:1px;}
+  .readout .lbl{color:var(--cy);opacity:0.75;font-size:10px;letter-spacing:2px;}
+  .readout .val{font-size:20px;font-weight:bold;text-shadow:0 0 8px currentColor;}
+  #afterburnerTag{color:var(--am);text-shadow:0 0 10px var(--am);font-weight:bold;
+    opacity:0;transition:opacity 0.15s;letter-spacing:3px;}
+  #missionTag{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:6;
+    font-size:11px;letter-spacing:3px;color:var(--cy);opacity:0.7;
+    background:var(--panel);border:1px solid var(--panel-b);padding:4px 16px;border-radius:4px;
+    pointer-events:none;}
+
+  /* ---- reticle / lock ---- */
+  #reticleWrap{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:5;
+    pointer-events:none;width:100px;height:100px;}
+  #reticle{width:100%;height:100%;}
+
+  #lockText{position:fixed;top:calc(50% - 62px);left:50%;transform:translateX(-50%);z-index:5;
+    color:var(--rd);font-weight:bold;letter-spacing:3px;font-size:12px;text-shadow:0 0 8px var(--rd);opacity:0;
+    transition:opacity 0.15s;}
+  #lockStatus{position:fixed;top:calc(50% + 60px);left:50%;transform:translateX(-50%);z-index:5;
+    font-size:10px;letter-spacing:2px;opacity:0.7;}
+
+  /* ---- radar ---- */
+  #radar{position:fixed;top:70px;right:14px;width:160px;height:160px;z-index:5;}
+  #radar .ring{position:absolute;border:1px solid rgba(94,231,255,0.28);border-radius:50%;}
+  #radar .sweep{position:absolute;top:50%;left:50%;width:50%;height:1px;
+    background:linear-gradient(90deg, rgba(94,231,255,0.6), transparent);
+    transform-origin:left center;animation:sweep 3s linear infinite;}
+  @keyframes sweep{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  #radarLabel{position:fixed;top:236px;right:14px;font-size:9px;letter-spacing:2px;color:var(--cy);opacity:0.6;z-index:5;}
+
+  /* ---- target list (bombing) ---- */
+  #targetList{position:fixed;top:236px;right:14px;font-size:10px;letter-spacing:2px;
+    color:var(--am);z-index:5;display:none;}
+
+  /* ---- health bars ---- */
+  #bars{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:5;
+    display:flex;gap:26px;align-items:flex-end;}
+  .bargroup{width:210px;}
+  .barlabel{font-size:11px;letter-spacing:2px;display:flex;justify-content:space-between;margin-bottom:4px;}
+  .barouter{height:12px;border:1px solid var(--panel-b);border-radius:3px;overflow:hidden;background:rgba(255,255,255,0.05);}
+  .barinner{height:100%;transition:width 0.2s;}
+  #playerBar{background:linear-gradient(90deg,#1e88e5,#5ee7ff);}
+  #enemyBar{background:linear-gradient(90deg,#c62828,#ff4d4d);}
+
+  /* ---- weapon panel ---- */
+  #weaponPanel{position:fixed;bottom:16px;right:14px;z-index:5;padding:8px 14px;
+    text-align:right;min-width:120px;}
+  #weaponPanel .lbl{color:var(--cy);opacity:0.7;font-size:10px;letter-spacing:2px;}
+  #weaponName{font-size:16px;font-weight:bold;letter-spacing:2px;}
+  #weaponCount{font-size:24px;font-weight:bold;color:var(--am);text-shadow:0 0 8px var(--am);}
+  #weaponHint{font-size:9px;opacity:0.5;margin-top:2px;}
+
+  #ammo{position:fixed;bottom:16px;left:14px;z-index:5;padding:8px 12px;font-size:12px;letter-spacing:1px;}
+  #ammo .val{color:var(--am);font-weight:bold;font-size:16px;}
+
+  /* ---- incoming warning ---- */
+  #incomingWarning{position:fixed;top:50%;left:30%;transform:translate(-50%,-50%);z-index:6;
+    color:var(--rd);font-weight:bold;font-size:18px;letter-spacing:4px;
+    text-shadow:0 0 12px var(--rd);opacity:0;pointer-events:none;
+    animation:warnPulse 0.5s ease-in-out infinite alternate;}
+  @keyframes warnPulse{from{opacity:0.4;}to{opacity:1;}}
+  #incomingWarning::before{content:"⚠ ";font-size:22px;}
+
+  /* ---- crosshair hint ---- */
+  #crosshair-msg{position:fixed;top:calc(50% + 78px);left:50%;transform:translateX(-50%);z-index:5;
+    font-size:9px;letter-spacing:1px;color:#9fd;opacity:0.4;white-space:nowrap;}
+
+  /* ---- message overlay / menu ---- */
+  #msgOverlay{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(4,10,16,0.55) 0%, rgba(2,6,10,0.92) 100%);}
+  #msgBox{max-width:600px;padding:34px 44px;text-align:center;}
+  #msgBox h1{margin:0 0 6px;font-size:32px;letter-spacing:5px;color:var(--cy);text-shadow:0 0 18px var(--cy);}
+  #msgBox h2{margin:0 0 18px;font-size:15px;letter-spacing:3px;color:#9fd; opacity:0.7;font-weight:normal;}
+  #msgBox p{font-size:13px;line-height:1.9;color:#cfeaf5;opacity:0.9;margin:4px 0;}
+  #msgBox .key{display:inline-block;min-width:20px;padding:1px 6px;margin:0 2px;border:1px solid var(--panel-b);
+    border-radius:4px;color:var(--cy);font-weight:bold;}
+  #startBtn,#restartBtn{margin-top:22px;pointer-events:all;cursor:pointer;background:linear-gradient(180deg,#0d2a36,#081a22);
+    border:1px solid var(--cy);color:var(--cy);padding:12px 38px;font-size:15px;letter-spacing:4px;border-radius:4px;
+    font-family:inherit;box-shadow:0 0 20px rgba(94,231,255,0.25);
+    transition:all 0.2s;}
+  #startBtn:hover,#restartBtn:hover{background:rgba(94,231,255,0.18);box-shadow:0 0 30px rgba(94,231,255,0.45);}
+  #resultTitle.win{color:var(--grn);text-shadow:0 0 18px var(--grn);}
+  #resultTitle.lose{color:var(--rd);text-shadow:0 0 18px var(--rd);}
+
+  /* ---- mission selector ---- */
+  .missionSelect{margin:18px 0;text-align:left;}
+  .missionSelect .mlbl{font-size:10px;letter-spacing:3px;color:var(--cy);opacity:0.6;margin-bottom:8px;}
+  .missionOpt{display:inline-block;margin:4px 6px;padding:8px 16px;border:1px solid var(--panel-b);
+    border-radius:4px;cursor:pointer;pointer-events:all;font-size:12px;letter-spacing:2px;
+    background:rgba(6,14,20,0.4);transition:all 0.2s;}
+  .missionOpt input{display:none;}
+  .missionOpt:hover{border-color:var(--cy);background:rgba(94,231,255,0.08);}
+  .missionOpt.active{border-color:var(--cy);background:rgba(94,231,255,0.18);
+    box-shadow:0 0 14px rgba(94,231,255,0.3);color:var(--cy);}
+  .missionDesc{font-size:11px;color:#9fd;opacity:0.6;margin-top:4px;}
+
+  #fpsTag{position:fixed;bottom:4px;left:8px;font-size:9px;color:#456;opacity:0.5;z-index:5;}
+
+  /* ---- scanline overlay for HUD feel ---- */
+  #scanlines{position:fixed;inset:0;z-index:4;pointer-events:none;
+    background:repeating-linear-gradient(0deg, rgba(94,231,255,0.015) 0px, rgba(94,231,255,0.015) 1px, transparent 1px, transparent 3px);
+    opacity:0.5;}
+
+  /* ---- touch controls ---- */
+  #touchControls{display:none;position:fixed;inset:0;z-index:8;pointer-events:none;}
+  #touchControls.active{display:block;}
+  #joyZone{position:fixed;bottom:20px;left:20px;width:140px;height:140px;pointer-events:all;
+    border-radius:50%;border:2px solid rgba(94,231,255,0.3);background:rgba(6,14,20,0.4);}
+  #joyKnob{position:absolute;width:56px;height:56px;border-radius:50%;left:42px;top:42px;
+    background:rgba(94,231,255,0.25);border:2px solid var(--cy);box-shadow:0 0 12px rgba(94,231,255,0.4);
+    transition:transform 0.05s;}
+  .tbtn{position:fixed;pointer-events:all;border-radius:50%;border:2px solid var(--panel-b);
+    background:rgba(6,14,20,0.6);color:var(--cy);font-family:inherit;font-weight:bold;
+    display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px);
+    box-shadow:0 0 12px rgba(94,231,255,0.15);transition:all 0.1s;user-select:none;}
+  .tbtn:active{background:rgba(94,231,255,0.25);box-shadow:0 0 20px rgba(94,231,255,0.4);transform:scale(0.92);}
+  #tFire{bottom:100px;right:30px;width:80px;height:80px;font-size:13px;letter-spacing:1px;border-color:var(--rd);color:var(--rd);}
+  #tWeapon{bottom:30px;right:120px;width:64px;height:64px;font-size:11px;letter-spacing:1px;}
+  #tView{bottom:30px;right:200px;width:56px;height:56px;font-size:10px;letter-spacing:1px;}
+  #tBoost{bottom:120px;right:120px;width:64px;height:64px;font-size:11px;letter-spacing:1px;border-color:var(--am);color:var(--am);}
+  #tThrottleDn{bottom:190px;right:30px;width:56px;height:56px;font-size:10px;letter-spacing:1px;}
+
+  /* ---- mission list ---- */
+  #missionList{max-height:220px;overflow-y:auto;padding-right:8px;}
+  #missionList::-webkit-scrollbar{width:6px;}
+  #missionList::-webkit-scrollbar-thumb{background:rgba(94,231,255,0.3);border-radius:3px;}
+  .missionItem{display:block;margin:5px 0;padding:8px 14px;border:1px solid var(--panel-b);border-radius:4px;
+    cursor:pointer;pointer-events:all;font-size:12px;letter-spacing:1px;background:rgba(6,14,20,0.4);
+    transition:all 0.15s;text-align:left;}
+  .missionItem:hover{border-color:var(--cy);background:rgba(94,231,255,0.08);}
+  .missionItem.active{border-color:var(--cy);background:rgba(94,231,255,0.18);
+    box-shadow:0 0 10px rgba(94,231,255,0.25);}
+  .missionItem .mi-name{color:var(--cy);font-weight:bold;letter-spacing:2px;}
+  .missionItem .mi-desc{font-size:10px;color:#9fd;opacity:0.6;margin-top:2px;letter-spacing:0.5px;}
+</style>
+  <script type="module" crossorigin src="./assets/index-5vKWzKU6.js"></script>
+</head>
+<body>
+
+<div id="canvasWrap"></div>
+<div id="scanlines"></div>
+
+<div id="missionTag" class="hud">MISSION: DOGFIGHT</div>
+<div id="missionTimeTag" class="hud" style="top:42px;display:none"></div>
+<div id="missionProgressTag" class="hud" style="top:64px;display:none"></div>
+
+<div class="hud" id="topbar">
+  <div class="panel readout"><div class="lbl">AIRSPEED</div><div class="val" id="spdVal">000</div></div>
+  <div class="panel readout" style="text-align:center;">
+    <div class="lbl">ENGINE</div><div class="val" id="afterburnerTag">AFTERBURNER</div>
+  </div>
+  <div class="panel readout" style="text-align:right;"><div class="lbl">ALTITUDE</div><div class="val" id="altVal">000</div></div>
+</div>
+
+<div id="reticleWrap" class="hud">
+  <svg id="reticle" viewBox="0 0 100 100">
+    <circle cx="50" cy="50" r="26" fill="none" stroke="#5ee7ff" stroke-width="1.4" opacity="0.75"/>
+    <circle cx="50" cy="50" r="2.4" fill="#5ee7ff"/>
+    <line x1="50" y1="6" x2="50" y2="20" stroke="#5ee7ff" stroke-width="1.4"/>
+    <line x1="50" y1="80" x2="50" y2="94" stroke="#5ee7ff" stroke-width="1.4"/>
+    <line x1="6" y1="50" x2="20" y2="50" stroke="#5ee7ff" stroke-width="1.4"/>
+    <line x1="80" y1="50" x2="94" y2="50" stroke="#5ee7ff" stroke-width="1.4"/>
+    <circle id="lockCircle" cx="50" cy="50" r="38" fill="none" stroke="#ff4d4d" stroke-width="2" opacity="0"/>
+    <circle id="lockProgressCircle" cx="50" cy="50" r="40" fill="none" stroke="#ffb020" stroke-width="2.5"
+      opacity="0" stroke-dasharray="251" stroke-dashoffset="251" transform="rotate(-90 50 50)"/>
+  </svg>
+</div>
+<div id="lockText" class="hud">LOCKED — FOX 3</div>
+<div id="lockStatus" class="hud" style="color:var(--cy);">SEARCH</div>
+<div id="crosshair-msg" class="hud">SPACE fire · W/S pitch · A/D roll · Q/E yaw · SHIFT afterburner · F switch weapon · C cockpit view</div>
+
+<div id="radar" class="hud panel">
+  <div class="ring" style="width:96%;height:96%;top:2%;left:2%;"></div>
+  <div class="ring" style="width:60%;height:60%;top:20%;left:20%;"></div>
+  <div class="sweep"></div>
+  <div style="position:absolute;width:6px;height:6px;top:50%;left:50%;margin:-3px;background:#5ee7ff;border-radius:50%;box-shadow:0 0 8px #5ee7ff;"></div>
+  <div id="enemyBlip" style="position:absolute;width:8px;height:8px;border-radius:50%;background:#ff4d4d;
+    box-shadow:0 0 8px #ff4d4d;top:50%;left:50%;margin:-4px;"></div>
+</div>
+<div id="radarLabel" class="hud">RADAR · 400m</div>
+<div id="targetList" class="hud">TARGETS: 0 / 0</div>
+
+<div id="incomingWarning">INCOMING MISSILE</div>
+
+<div class="hud" id="bars">
+  <div class="bargroup">
+    <div class="barlabel"><span>F-22 RAPTOR</span><span id="playerHpTxt">100</span></div>
+    <div class="barouter"><div class="barinner" id="playerBar" style="width:100%"></div></div>
+  </div>
+  <div class="bargroup">
+    <div class="barlabel"><span>MIG-35</span><span id="enemyHpTxt">100</span></div>
+    <div class="barouter"><div class="barinner" id="enemyBar" style="width:100%"></div></div>
+  </div>
+</div>
+
+<div class="hud panel" id="ammo"><span class="lbl">MISSILES</span> <span class="val" id="ammoVal">8</span></div>
+
+<div class="hud panel" id="weaponPanel">
+  <div class="lbl">WEAPON</div>
+  <div id="weaponName">AIM-120</div>
+  <div id="weaponCount">8</div>
+  <div id="weaponHint">[F] to switch</div>
+</div>
+
+<div id="msgOverlay">
+  <div id="msgBox" class="panel">
+    <h1 id="resultTitle">SKY STRIKE</h1>
+    <h2 id="resultSub">F-22 RAPTOR — COMBAT SIMULATOR</h2>
+    <p id="resultSub2">Select mission and ENGAGE.</p>
+
+    <div class="missionSelect">
+      <div class="mlbl">SELECT MISSION</div>
+      <div id="missionList"></div>
+    </div>
+
+    <p><span class="key">W</span><span class="key">S</span> pitch &nbsp;
+       <span class="key">A</span><span class="key">D</span> roll &nbsp;
+       <span class="key">Q</span><span class="key">E</span> yaw</p>
+    <p><span class="key">SHIFT</span> afterburner &nbsp; <span class="key">CTRL</span> throttle down</p>
+    <p><span class="key">SPACE</span> fire weapon &nbsp; <span class="key">F</span> switch missile / bomb &nbsp; <span class="key">C</span> cockpit view</p>
+    <button id="startBtn">ENGAGE</button>
+  </div>
+</div>
+
+<div id="fpsTag"></div>
+
+<div id="touchControls">
+  <div id="joyZone"><div id="joyKnob"></div></div>
+  <button class="tbtn" id="tFire">FIRE</button>
+  <button class="tbtn" id="tWeapon">WPN</button>
+  <button class="tbtn" id="tView">VIEW</button>
+  <button class="tbtn" id="tBoost">BOOST</button>
+  <button class="tbtn" id="tThrottleDn">SLOW</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</body>
+</html>
