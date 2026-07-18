@@ -12,10 +12,10 @@
     antialias: true,
     powerPreference: "high-performance",
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.18;
@@ -45,10 +45,10 @@
   sun.position.set(700, 1000, -400);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
-  sun.shadow.camera.left = -300;
-  sun.shadow.camera.right = 300;
-  sun.shadow.camera.top = 300;
-  sun.shadow.camera.bottom = -300;
+  sun.shadow.camera.left = -150;
+  sun.shadow.camera.right = 150;
+  sun.shadow.camera.top = 150;
+  sun.shadow.camera.bottom = -150;
   sun.shadow.camera.near = 100;
   sun.shadow.camera.far = 2500;
   sun.shadow.bias = -0.0004;
@@ -217,7 +217,7 @@
       terrainGroup.scale.setScalar(scale);
       terrainGroup.traverse(function (o) {
         if (o.isMesh) {
-          o.castShadow = true;
+          o.castShadow = false;
           o.receiveShadow = true;
         }
       });
@@ -533,10 +533,10 @@ void main(){
     pool.points.geometry.attributes.aAlpha.needsUpdate = true;
   }
 
-  const firePool = createPool(300, 0xffa030, THREE.AdditiveBlending);
-  const smokePool = createPool(350, 0xaab0b5, THREE.NormalBlending);
-  const sparkPool = createPool(200, 0xffcf80, THREE.AdditiveBlending);
-  const debrisPool = createPool(80, 0x886644, THREE.NormalBlending);
+  const firePool = createPool(160, 0xffa030, THREE.AdditiveBlending);
+  const smokePool = createPool(180, 0xaab0b5, THREE.NormalBlending);
+  const sparkPool = createPool(100, 0xffcf80, THREE.AdditiveBlending);
+  const debrisPool = createPool(40, 0x886644, THREE.NormalBlending);
 
   function randSphereDir() {
     const v = new THREE.Vector3(
